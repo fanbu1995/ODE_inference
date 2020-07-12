@@ -31,7 +31,7 @@ SLE1 = sim_SLE(plot=TRUE)
 
 SLE2 = sim_SLE(alpha=0.5, sigma=0.2, plot = TRUE)
 
-SLE3 = sim_SLE(alpha=0.5, sigma = 0.5, plot = TRUE)
+SLE3 = sim_SLE(alpha=0.5, sigma = 1.1, plot = TRUE)
 
 # 2. a function to obtain discrete observations
 discretize_SLE <- function(SLE_list, tau){
@@ -174,6 +174,7 @@ res2 = test_iGLS_SLE(alpha=1, sigma=0.5, tau=0.2, init.params = list(alpha=0.3, 
 
 alpha=0.5
 Sigmas = c(0.1, 0.5, 1)
+#Sigmas = c(0.5, 1, 1.1)
 Taus = c(0.2, 1)
 
 repeat_test <- function(SigmaList, TauList, R=20, showCurves=TRUE, ...){
@@ -201,7 +202,7 @@ repeat_test <- function(SigmaList, TauList, R=20, showCurves=TRUE, ...){
       if(showCurves){
         print(
           ggplot(allData, aes(x=times, y=y, group = rep)) +
-            geom_line(size=0.8) +
+            geom_line(size=0.4) +
             labs(x="time", y="y", title="discrete observations",
                  caption = paste("alpha=", alpha, "sigma=", sigma,"tau=",tau)) +
             theme_bw(base_size = 14)
@@ -221,12 +222,16 @@ repeat_test <- function(SigmaList, TauList, R=20, showCurves=TRUE, ...){
 repTest1 = repeat_test(Sigmas, Taus, alpha=0.5, plot=FALSE, 
                        init.params = list(alpha=0.3, sigma2=1))
 
+repTest2 = repeat_test(Sigmas, Taus, alpha=0.5, plot=FALSE, 
+                       init.params = list(alpha=0.5, sigma2=1))
+
 ## Findings:
 ## 1. For some sequences, the algorithm doesn't convergence: 
 ##    two (or more) solutions fit the data equally well, so the algorithm oscillates between them...
 ## 2. My framework doesn't really work that well, because
 ##   a) for this SDE, the ODE isn't the mean function; bistability of SDE isn't present in ODE system
-##   b) it works comparably as NLS, so it doesn't solve the real issue
+##   b) it works comparably as NLS, so it doesn't solve the real issue; 
+##      numerical problems encountered when noise level > growth rate
 
 saveRDS(repTest1, "SLE_simulation_res.rds")
 
