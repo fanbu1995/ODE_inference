@@ -1,6 +1,7 @@
 # 07/03/2020
 
 # basic code for 1st attempt of my inference framework
+# exponential function <--> simple pure-birth process
 
 library(tidyverse)
 
@@ -28,6 +29,8 @@ sim_branching <- function(lambda, tmax=10, y0=1){
 ll = sim_branching(0.1, tmax = 100)
 plot(ll$times, ll$values)
 
+ll2 = sim_branching(1, tmax = 10)
+plot(ll2$times, ll2$values)
 
 # 2. a function to obtain discrete step-wise observations
 
@@ -120,12 +123,27 @@ test_iGLS_exp <- function(lambda, tau, init.param, tmax=10, y0=1, tol=1e-4){
   obs = get_discrete_obs(events, tau)
   cat("Discrete data acquired with stepsize =",tau,"\n")
   plot(obs$times, obs$y)
+  # 2.5) if simulated result is a flat line, then repeat
+  while(all(obs$y == 1)){
+    # 1) simulate
+    events = sim_branching(lambda, tmax, y0)
+    cat("simulation done!\n")
+    # 2) discretize
+    obs = get_discrete_obs(events, tau)
+    cat("Discrete data acquired with stepsize =",tau,"\n")
+    plot(obs$times, obs$y)
+  }
   # 3) estimate
   res = iGLS_exp(obs, init.param, tol)
   # 4) compare with NLS
   NLS.fit = nls(y~exp(lambda * times), res$data, 
                 start = list(lambda = init.param))
-  cat("NLS estimate for lambda: ", coef(NLS.fit),"\n")
+  NLS.est = coef(NLS.fit) %>% as.numeric()
+  cat("NLS estimate for lambda: ", NLS.est,"\n")
+  
+  # 5) and true lambda value and NLS estimate
+  res$lambdaTrue = lambda
+  res$lambdaNLS = NLS.est
   
   return(res)
 }
@@ -135,7 +153,55 @@ test_iGLS_exp <- function(lambda, tau, init.param, tmax=10, y0=1, tol=1e-4){
 test1 = test_iGLS_exp(lambda=0.5, tau=0.5, init.param= 0.2)
 ### works fine; similar to NLS
 
-test2 = test_iGLS_exp(lambda=0.3, tau=2, init.param= 0.2)
+test2 = test_iGLS_exp(lambda=0.3, tau=0.2, init.param= 0.2)
 ### large randomness with Y process
 ### so should run this repeatedly!!
 ### (TBD)
+
+test3 = test_iGLS_exp(lambda=1, tau=0.2, init.param= 0.5)
+
+
+# 5. Conduct a series of experiments with
+# lambda = 0.3, 0.5, 1
+# tau = 0.2, 0.5, 1
+# each repeat 20 times?
+
+Lambdas = c(0.3, 0.5, 1)
+Taus = c(0.2, 0.5, 1)
+
+repeat_test <- function(LambdaList, TauList, R=20, ...){
+  resTable = NULL
+  for(lambda in LambdaList){
+    for(tau in TauList){
+      cat("Experiment with lambda =", lambda, "and tau =", tau,"...\n")
+      for(r in 1:R){
+        this.test = test_iGLS_exp(lambda=lambda, tau=tau, ...)
+        est.error = this.test$lambda - this.test$lambdaTrue
+        NLS.error = this.test$lambdaNLS - this.test$lambdaTrue
+        resTable = rbind(resTable, c(lambda, tau, est.error))
+        resTable = rbind(resTable, c(lambda, tau, NLS.error))
+        cat(r,"\t")
+      }
+      cat("Experiment done and results recorded!\n")
+    }
+  }
+  resTable = as.data.frame(resTable)
+  names(resTable) = c("lambda","tau", "error")
+  n = length(LambdaList) * length(TauList) * R
+  resTable$method = rep(c("Approx","NLS"), n)
+  
+  return(resTable)
+}
+
+Res = repeat_test(Lambdas, Taus, init.param = 0.5)
+
+## save this for later use
+saveRDS(Res, "Exponential_simulation_res.rds")
+
+## make boxplots to compare errors
+ggplot(data=Res, aes(x=method,y=error)) +
+  geom_hline(yintercept = 0, size=1, color="gray") +
+  geom_boxplot() +
+  #geom_violin() +
+  theme_bw()+
+  facet_grid(lambda~tau)
